@@ -2,79 +2,138 @@ package ee.ttu.algoritmid.tsp;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.IntStream;
 
 public class TSP {
-    private BigInteger checkedNodesCount;
-    private int nodesCount;
-    private int best;
-    private List<Integer> bestRoute;
+    BigInteger checkedNodesCount;
+    static int[][] adjacencyMatrix;
+    static int[] bounds;
+
+    int citiesCount;
+    int boundSum;
+    int bestDistance;
+    List<Integer> bestRoute;
 
     /* Depth first search */
     public List<Integer> depthFirst(int[][] adjacencyMatrix) {
-        this.nodesCount = adjacencyMatrix.length;
-        this.checkedNodesCount = BigInteger.ZERO;
-        if (nodesCount == 0) return new ArrayList<>();
-        if (nodesCount == 1) {
-            this.checkedNodesCount = BigInteger.ONE;
-            return Collections.singletonList(0);
+        TSP.adjacencyMatrix = adjacencyMatrix;
+        checkedNodesCount = BigInteger.ZERO;
+
+        AbstractMap.SimpleEntry<Integer, int[]> calculatedBound = calculateMatrixBound(adjacencyMatrix);
+        bounds = calculatedBound.getValue();
+        bestRoute = new ArrayList<>();
+
+        citiesCount = adjacencyMatrix.length;
+        boundSum = calculatedBound.getKey();
+        bestDistance = Integer.MAX_VALUE;
+
+        if (citiesCount <= 1) {
+            if (citiesCount == 0) return new ArrayList<>();
+            return new ArrayList<>(Arrays.asList(0));
         }
-        Node.setMinBound(adjacencyMatrix);
-        this.best = Integer.MAX_VALUE;
 
         Stack<Node> stack = new Stack<>();
-        stack.push(new Node(0));
+        Node root = new Node(0, boundSum);
+        stack.push(root);
+
         while (!stack.isEmpty()) {
-            Node currentNode = stack.pop();
-            this.checkedNodesCount = this.checkedNodesCount.add(BigInteger.ONE);
-            if (currentNode.getPassedRoutesSize() == nodesCount) {
-                Node last = new Node(currentNode, 0, adjacencyMatrix);
-                setBestRoute(last);
-            } else {
-                for (Node node : Node.getRoutes(currentNode, adjacencyMatrix, this.best)) {
-                    if (node.getBound() >= this.best) continue;
-                    stack.push(node);
-                }
+            Node current = stack.pop();
+            increaseCheckedNodesCount();
+
+            if (isReachedLastCity(current.route.size())) {
+                calculateBestRoute(current);
+                continue;
+            }
+
+            for (Node nextCity : getRoutes(current)) {
+                if (bestDistance > nextCity.bound)
+                    stack.push(nextCity);
             }
         }
-        return this.bestRoute;
+        return bestRoute;
     }
 
     /* Best first search */
     public List<Integer> bestFirst(int[][] adjacencyMatrix) {
-        this.nodesCount = adjacencyMatrix.length;
-        this.checkedNodesCount = BigInteger.ZERO;
-        if (nodesCount == 0) return new ArrayList<>();
-        if (nodesCount == 1) {
-            this.checkedNodesCount = BigInteger.ONE;
-            return Collections.singletonList(0);
-        }
-        Node.setMinBound(adjacencyMatrix);
-        this.best = Integer.MAX_VALUE;
+        TSP.adjacencyMatrix = adjacencyMatrix;
+        checkedNodesCount = BigInteger.ZERO;
 
-        PriorityQueue<Node> pq = new PriorityQueue<>(Comparator.comparingInt(Node::getBound));
-        pq.add(new Node(0));
-        while (!pq.isEmpty()) {
-            Node currentNode = pq.poll();
-            this.checkedNodesCount = this.checkedNodesCount.add(BigInteger.ONE);
-            if (currentNode.getPassedRoutesSize() == nodesCount) {
-                Node last = new Node(currentNode, 0, adjacencyMatrix);
-                setBestRoute(last);
-            } else {
-                pq.addAll(Node.getRoutes(currentNode, adjacencyMatrix, this.best));
+        AbstractMap.SimpleEntry<Integer, int[]> calculatedBound = calculateMatrixBound(adjacencyMatrix);
+        bounds = calculatedBound.getValue();
+        bestRoute = new ArrayList<>();
+
+        citiesCount = adjacencyMatrix.length;
+        boundSum = calculatedBound.getKey();
+        bestDistance = Integer.MAX_VALUE;
+
+        if (citiesCount <= 1) {
+            if (citiesCount == 0) return new ArrayList<>();
+            return new ArrayList<>(Arrays.asList(0));
+        }
+
+        PriorityQueue<Node> priorityQueue = new PriorityQueue<>();
+        Node root = new Node(0, boundSum);
+        priorityQueue.add(root);
+
+        while (!priorityQueue.isEmpty()) {
+            Node current = priorityQueue.poll();
+            increaseCheckedNodesCount();
+
+            if (isReachedLastCity(current.route.size())) {
+                calculateBestRoute(current);
+                continue;
+            }
+
+            for (Node nextCity : getRoutes(current)) {
+                if (bestDistance > nextCity.bound)
+                    priorityQueue.add(nextCity);
             }
         }
-        return this.bestRoute;
+        return bestRoute;
     }
 
-    /* Nodes viewed in last matrix to find the solution (should be zeroed at the beginnig of search) */
+    /* Nodes viewed in last matrix to find the solution (should be zeroed at the beginning of search) */
     public BigInteger getCheckedNodesCount() {
-        return this.checkedNodesCount;
+        return checkedNodesCount;
     }
 
-    private void setBestRoute(Node node) {
-        if (node.getDistance() < this.best) {
-            this.best = node.getDistance();
-            this.bestRoute = node.getPassedRoutes();
+    List<Node> getRoutes(Node current) {
+        List<Node> routes = new ArrayList<>();
+        for (int i = 0; i < adjacencyMatrix.length; i++) {
+            if (current.route.contains(i)) continue;
+            routes.add(new Node(i, current));
         }
+        return routes;
+    }
+
+    boolean isReachedLastCity(int nodeCitiesCount) {
+        return citiesCount == nodeCitiesCount;
+    }
+
+    void calculateBestRoute(Node current) {
+        Node finish = new Node(0, current);
+        if (bestDistance > finish.distance) {
+            bestRoute = finish.route;
+            bestDistance = finish.distance;
+        }
+    }
+
+    void increaseCheckedNodesCount() {
+        checkedNodesCount = checkedNodesCount.add(BigInteger.ONE);
+    }
+
+    static AbstractMap.SimpleEntry<Integer, int[]> calculateMatrixBound(int[][] adjacencyMatrix) {
+        int[] matrixBound = new int[adjacencyMatrix.length];
+        int boundSum = 0;
+
+        for (int i = 0; i < adjacencyMatrix.length; i++) {
+            int minBound = IntStream.of(adjacencyMatrix[i])
+                    .filter(val -> val > 0)
+                    .min()
+                    .getAsInt();
+            matrixBound[i] = minBound;
+            boundSum += minBound;
+        }
+        return new AbstractMap.SimpleEntry<Integer, int[]>(boundSum, matrixBound);
     }
 }
