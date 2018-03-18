@@ -1,8 +1,7 @@
 public class Test {
-    private static final String msg = "Hello World!";
-    private static final String value = "Wat?";
+    private static final String message = "Hello World!";
 
     public static void main (String[] args) {
-        System.out.println(msg);
+        System.out.println(message);
     }
 }
